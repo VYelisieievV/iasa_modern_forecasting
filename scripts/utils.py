@@ -9,13 +9,14 @@ from scipy.stats import jarque_bera
 import statsmodels.api as sm
 from statsmodels.tsa.stattools import pacf, acf
 from statsmodels.tsa.stattools import adfuller, kpss
+from plotly.subplots import make_subplots
 
 
 def inference_statinarity(y, stat_test="adfuller", index_of_critical_values=4):
     if stat_test == "adfuller":
         result = adfuller(y)
     elif stat_test == "kpss":
-        result = kpss(y)
+        result = kpss(y, nlags="auto")
     else:
         raise ValueError(
             "Invalid test name:" + str(stat_test) + ". Try 'adfuller' or 'kpss'"
@@ -25,10 +26,7 @@ def inference_statinarity(y, stat_test="adfuller", index_of_critical_values=4):
         "p_value": result[1],
     }
     parsed_result.update(
-        {
-            "critical_value_" + k: v
-            for k, v in result[index_of_critical_values].items()
-        }
+        {"critical_value_" + k: v for k, v in result[index_of_critical_values].items()}
     )
     return {stat_test: parsed_result}
 
@@ -88,9 +86,9 @@ def plot_ts(y):
     fig.show()
 
 
-def compute_pacf_acf(input, plot=True):
-    acf_r = acf(input)
-    pacf_r = pacf(input)
+def compute_pacf_acf(input, plot=True, nlags=30):
+    acf_r = acf(input, nlags=nlags)
+    pacf_r = pacf(input, nlags=30)
 
     if plot:
         fig = plt.figure(figsize=(16, 8))
@@ -100,3 +98,52 @@ def compute_pacf_acf(input, plot=True):
         fig = sm.graphics.tsa.plot_pacf(input, ax=ax2)
 
     return acf_r, pacf_r
+
+
+def plot_seasonal_decompose(result):
+    trace1 = go.Scatter(x=result.observed.index, y=result.observed)
+
+    trace2 = go.Scatter(x=result.trend.index, y=result.trend, yaxis="y2")
+
+    trace3 = go.Scatter(x=result.seasonal.index, y=result.seasonal, yaxis="y3")
+
+    trace4 = go.Scatter(
+        x=result.resid.index, y=result.resid, mode="markers", yaxis="y4"
+    )
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True)
+
+    fig.append_trace(trace1, 1, 1)
+    fig.append_trace(trace2, 2, 1)
+    fig.append_trace(trace3, 3, 1)
+    fig.append_trace(trace4, 4, 1)
+
+    fig["layout"].update(
+        showlegend=False,
+        height=600,
+        yaxis=dict(title="Observed"),
+        yaxis2=dict(title="Trend"),
+        yaxis3=dict(title="Seasonal"),
+        yaxis4=dict(title="Residual"),
+        xaxis4=dict(title="Month"),
+    )
+
+    fig.update_layout(
+        xaxis=dict(
+            rangeselector=dict(
+                buttons=list(
+                    [
+                        dict(count=7, label="1w", step="day", stepmode="backward"),
+                        dict(count=1, label="1m", step="month", stepmode="backward"),
+                        dict(count=6, label="6m", step="month", stepmode="backward"),
+                        dict(count=1, label="YTD", step="year", stepmode="todate"),
+                        dict(count=1, label="1y", step="year", stepmode="backward"),
+                        dict(step="all"),
+                    ]
+                )
+            ),
+            type="date",
+        ),
+        xaxis4_rangeslider_visible=True,
+        xaxis4_rangeslider_thickness=0.075,
+    )
+    fig.show()

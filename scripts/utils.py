@@ -1,4 +1,5 @@
 from numpy.core.numeric import False_
+import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -10,6 +11,8 @@ import statsmodels.api as sm
 from statsmodels.tsa.stattools import pacf, acf
 from statsmodels.tsa.stattools import adfuller, kpss
 from plotly.subplots import make_subplots
+from tqdm.auto import tqdm
+from joblib import Parallel
 
 
 def inference_statinarity(y, stat_test="adfuller", index_of_critical_values=4):
@@ -64,7 +67,13 @@ def plot_ts_hist(y, bins=0.2, rug=False):
 
 
 def plot_ts(y):
-    fig = go.Figure([{"x": y.index, "y": y}])
+    fig = go.Figure()
+
+    if type(y) == type([]) or type(y) == type(list()):
+        for el in y:
+            fig.add_trace(go.Scatter({"x": el.index, "y": el, "name": el.name}))
+    else:
+        fig.add_trace(go.Scatter({"x": y.index, "y": y, "name": y.name}))
     fig.update_layout(
         xaxis=dict(
             rangeselector=dict(
@@ -86,16 +95,42 @@ def plot_ts(y):
     fig.show()
 
 
-def compute_pacf_acf(input, plot=True, nlags=30):
+def compute_pacf_acf(input, acf_bound, pacf_bound, nlags=30, plot=False):
     acf_r = acf(input, nlags=nlags)
-    pacf_r = pacf(input, nlags=30)
-
+    pacf_r = pacf(input, nlags=nlags)
     if plot:
-        fig = plt.figure(figsize=(16, 8))
-        ax1 = fig.add_subplot(211)
-        fig = sm.graphics.tsa.plot_acf(input, ax=ax1)
-        ax2 = fig.add_subplot(212)
-        fig = sm.graphics.tsa.plot_pacf(input, ax=ax2)
+        fig = make_subplots(rows=2, cols=1, subplot_titles=("ACF", "PACF"))
+
+        fig.add_trace(
+            go.Scatter(x=np.arange(nlags + 1), y=acf_r, showlegend=False), row=1, col=1
+        )
+
+        fig.add_trace(
+            go.Scatter(x=np.arange(nlags + 1), y=pacf_r, showlegend=False), row=2, col=1
+        )
+        fig.add_hrect(
+            y0=-acf_bound,
+            y1=acf_bound,
+            line_width=0,
+            fillcolor="turquoise",
+            opacity=0.5,
+            row=1,
+            col=1,
+        )
+        fig.add_hrect(
+            y0=-pacf_bound,
+            y1=pacf_bound,
+            line_width=0,
+            fillcolor="yellowgreen",
+            opacity=0.5,
+            row=2,
+            col=1,
+        )
+
+        fig.show()
+
+    print("ACF Important lags: ", np.where(np.abs(acf_r) > acf_bound)[0])
+    print("PACF Important lags: ", np.where(np.abs(pacf_r) > pacf_bound)[0])
 
     return acf_r, pacf_r
 
@@ -147,3 +182,20 @@ def plot_seasonal_decompose(result):
         xaxis4_rangeslider_thickness=0.075,
     )
     fig.show()
+
+
+class ProgressParallel(Parallel):
+    def __init__(self, use_tqdm=True, total=None, *args, **kwargs):
+        self._use_tqdm = use_tqdm
+        self._total = total
+        super().__init__(*args, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+        with tqdm(disable=not self._use_tqdm, total=self._total) as self._pbar:
+            return Parallel.__call__(self, *args, **kwargs)
+
+    def print_progress(self):
+        if self._total is None:
+            self._pbar.total = self.n_dispatched_tasks
+        self._pbar.n = self.n_completed_tasks
+        self._pbar.refresh()

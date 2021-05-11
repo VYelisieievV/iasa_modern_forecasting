@@ -2,6 +2,12 @@ import numpy as np
 import pandas as pd
 import math
 from statsmodels.stats.stattools import durbin_watson
+from sklearn.metrics import (
+    mean_squared_error,
+    mean_absolute_error,
+    mean_absolute_percentage_error,
+    r2_score,
+)
 
 
 def rmse(y_true, y_pred, model_params):
@@ -14,6 +20,18 @@ def sse(y_true, y_pred):
     return resid.T @ resid
 
 
+def mse(y_true, y_pred):
+    return mean_squared_error(y_true, y_pred)
+
+
+def mape(y_true, y_pred):
+    return mean_absolute_error(y_true, y_pred)
+
+
+def mae(y_true, y_pred):
+    return mean_absolute_percentage_error(y_true, y_pred)
+
+
 def dispersion(distribution):
     return ((distribution - distribution.mean()) ** 2).mean()
 
@@ -21,13 +39,7 @@ def dispersion(distribution):
 def determination_coef(y_true, y_pred):
     dis = ((y_true - y_pred) ** 2).mean()
     testdis = ((y_true - y_true.mean()) ** 2).mean()
-    return (testdis / (testdis + dis)) ** 2
-
-
-def adjusted_det_coef(y_true, y_pred, model_params):
-    return 1 - (1 - determination_coef(y_true, y_pred) ** 2) * (
-        (y_true.shape[0] - 1) / (y_true.shape[0] - model_params - 1)
-    )
+    return r2_score(y_true, y_pred)  # (testdis / (testdis + dis)) ** 2
 
 
 def log_likelihood(y_true, y_pred):
@@ -58,19 +70,18 @@ def shwarz_criteria(y_true, y_pred, model_params):
 
 
 def get_all_metrics(y_true, y_pred, model_params, caption):
-    return pd.DataFrame(
-        data={
-            "AIC": akkake_criteria(y_true, y_pred, model_params),
-            "RMSE": rmse(y_true, y_pred, model_params),
-            "Durbin-Watson": durbin_watson(y_true - y_pred),
-            "R-squared": determination_coef(y_true, y_pred),
-            "Schwarz criteria": shwarz_criteria(y_true, y_pred, model_params),
-            "SSE": sse(y_true, y_pred),
-            "Adjusted R-sq": adjusted_det_coef(y_true, y_pred, model_params),
-            "Log Likelihood": log_likelihood(y_true, y_pred),
-            "Mean dependent var": mean_dependent_var(y_true, y_pred),
-            "Std dependent var": std_dependent_var(y_true, y_pred),
-        },
-        index=["Value:"],
-    ).style.set_caption(caption)
-
+    res = {
+        "AIC": akkake_criteria(y_true, y_pred, model_params),
+        "RMSE": rmse(y_true, y_pred, model_params),
+        "MSE": mse(y_true, y_pred),
+        "MAPE": mape(y_true, y_pred),
+        "Durbin-Watson": durbin_watson(y_true - y_pred),
+        "R-squared": determination_coef(y_true, y_pred),
+        "Schwarz criteria": shwarz_criteria(y_true, y_pred, model_params),
+        "SSE": sse(y_true, y_pred),
+        "Log Likelihood": log_likelihood(y_true, y_pred),
+    }
+    all_key = list(res.keys())
+    for k in all_key:
+        res[k + f"_{caption}"] = res.pop(k)
+    return res

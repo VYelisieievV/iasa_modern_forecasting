@@ -10,18 +10,17 @@ from sklearn.metrics import (
 )
 
 
+def mse(y_true, y_pred):
+    return mean_squared_error(y_true, y_pred)
+
+
 def rmse(y_true, y_pred, model_params):
-    resid = y_true - y_pred
-    return (resid.T @ resid / (y_true.shape[0] - model_params)) ** 0.5
+    return mse(y_true, y_pred) ** 0.5
 
 
 def sse(y_true, y_pred):
     resid = y_true - y_pred
     return resid.T @ resid
-
-
-def mse(y_true, y_pred):
-    return mean_squared_error(y_true, y_pred)
 
 
 def mape(y_true, y_pred):
